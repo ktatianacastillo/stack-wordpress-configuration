@@ -1,0 +1,81 @@
+Parameters: 
+    VpcCidr: 
+      Type: String
+      Default: 10.0.0.0/16
+    Env: 
+      Type: String
+      Description: Name Enviroment
+      Default: dev
+    Author: 
+      Type: String
+      Description: Name for identifying components
+    KeyPair:
+      Type: AWS::EC2::KeyPair::KeyName
+      Description: Name key pair
+    Username:
+      Type: String
+      Description: Master username
+      Default: admin
+    Password:
+      Type: String
+      NoEcho: true
+      Description: Master user password
+      
+Resources:
+    VPC:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: 'https://kimberly--trambo.s3.amazonaws.com/vpcParam.yml'
+            TimeoutInMinutes: '60'
+            Parameters:
+                VpcCidr: !Ref VpcCidr
+                Env: !Ref Env
+                Author: !Ref Author 
+                KeyPair: !Ref KeyPair
+    EC2:
+        Type: AWS::CloudFormation::Stack
+        DependsOn:
+          - RDS
+          - VPC
+        Properties:
+            TemplateURL: 'https://kimberly--trambo.s3.amazonaws.com/EC2.yml'
+            TimeoutInMinutes: '60'
+            Parameters:
+                Env: !Ref Env
+                Author: !Ref Author 
+                KeyPair: !Ref KeyPair
+                VPC: !GetAtt VPC.Outputs.VPC
+                SubnetPublic1: !GetAtt VPC.Outputs.SubnetPublic1
+                SubnetPrivate1: !GetAtt VPC.Outputs.SubnetPrivate1
+                DBName: !GetAtt RDS.Outputs.DBName
+                DBUsername: !Ref Username
+                DBPassword: !Ref Password
+                DBEndpoint: !GetAtt RDS.Outputs.DBEndpoint
+    RDS:
+        DependsOn:
+          - VPC
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: 'https://kimberly--trambo.s3.amazonaws.com/RDS.yml'
+            TimeoutInMinutes: '60'
+            Parameters:
+                Env: !Ref Env
+                Author: !Ref Author 
+                SubnetPrivate1: !GetAtt VPC.Outputs.SubnetPrivate1
+                SubnetPrivate2: !GetAtt VPC.Outputs.SubnetPrivate2
+                Username: !Ref Username
+                Password: !Ref Password
+                VPC: !GetAtt VPC.Outputs.VPC
+    
+    Route53:
+        DependsOn:
+          - EC2
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: 'https://kimberly--trambo.s3.amazonaws.com/Route53.yml'
+            TimeoutInMinutes: '60'
+            Parameters:
+                IP: !GetAtt EC2.Outputs.IP
+                Author: !Ref Author 
+
+

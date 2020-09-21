@@ -1,0 +1,19 @@
+Parameters: 
+    Author: 
+        Type: String
+        Description: Name for identifying components
+    IP:
+        Type: String
+        Description: Ip for resource record
+        
+Resources:
+    DNSRecord:
+        Type: AWS::Route53::RecordSet
+        Properties:
+            HostedZoneId: Z2LZ45JUYPDLLV
+            Name: !Sub ${Author}.training.trambo.cloud
+            Type: A
+            TTL: '900'
+            ResourceRecords:
+                - !Ref IP
+

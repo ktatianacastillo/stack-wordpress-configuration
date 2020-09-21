@@ -1,0 +1,79 @@
+Parameters: 
+    Env: 
+      Type: String
+      Description: Name Enviroment
+    Author: 
+      Type: String
+      Description: Name for identifying components
+    Username:
+      Type: String
+      Description: Master username
+    Password:
+      Type: String
+      NoEcho: true
+      Description: Master user password
+    SubnetPrivate1:
+        Type: String
+        Description: Subnet private 1
+    SubnetPrivate2:
+        Type: String
+        Description: Subnet private 2
+    VPC:
+        Type: String
+        Description: VPC
+
+Outputs:
+  RDS:
+    Description: MySQL Database
+    Value: !Ref RDS
+  DBEndpoint:
+    Description: connection endpoint for the database.
+    Value: !GetAtt  RDS.Endpoint.Address
+  DBName:
+    Description: database name.
+    Value: !Sub ${Author}${Env}DB
+    
+Resources:
+  
+    RDS:
+        Type: AWS::RDS::DBInstance
+        Properties:
+            DBInstanceIdentifier: !Sub ${Author}${Env}DB
+            DBSubnetGroupName: !Ref DBSubnetGroup
+            AllocatedStorage: '5'
+            DBInstanceClass: db.t2.micro
+            Engine: MySQL
+            DBName: !Sub ${Author}${Env}DB
+            MasterUsername: !Ref Username
+            MasterUserPassword: !Ref Password
+            VPCSecurityGroups:
+              - !GetAtt DBSecurityGroup.GroupId
+            Port: 3306
+            Tags:
+                - Key: Name
+                  Value: !Sub ${Author}-${Env}-db
+        DependsOn:
+            - DBSubnetGroup
+
+    DBSubnetGroup:
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: subnet group for db
+            DBSubnetGroupName: !Sub ${Author}${Env}Sb
+            SubnetIds:
+                - !Ref SubnetPrivate1
+                - !Ref SubnetPrivate2
+            Tags:
+                - Key: Name
+                  Value: !Sub ${Author}-${Env}-sg-db
+    DBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupName:  ${Author}${Env}DbSb
+        GroupDescription: allows incoming mysql connection
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - CidrIp: 0.0.0.0/0
+            IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306

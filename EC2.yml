@@ -1,0 +1,120 @@
+Parameters: 
+    Env: 
+        Type: String
+        Description: Name Enviroment
+    Author: 
+        Type: String
+        Description: Name for identifying components
+    KeyPair:
+        Type: AWS::EC2::KeyPair::KeyName
+        Description: Name key pair
+    VPC:
+        Type: String
+        Description: VPC
+    SubnetPublic1:
+        Type: String
+        Description: Subnet Public
+    SubnetPrivate1:
+        Type: String
+        Description: Subnet private
+    DBName:
+        Type: String
+        Description: Name database
+    DBUsername:
+        Type: String
+        Description: Username master database
+    DBPassword:
+        Type: String
+        Description: Password user master database
+    DBEndpoint:
+        Type: String
+        Description: Endpoint database
+
+Outputs:
+  IP: 
+    Description: Server public IP
+    Value: !GetAtt PublicInstanceEC2.PublicIp
+
+Resources: 
+    SecurityGroupEC2:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            GroupDescription: "Grupo de seguridad para EC2"
+            GroupName: !Sub ${Author}-${Env}-sg-ec2    
+            SecurityGroupIngress: 
+                - IpProtocol: tcp
+                  FromPort: 22
+                  ToPort: 22
+                  CidrIp: 0.0.0.0/0   
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: tcp
+                  FromPort: 443
+                  ToPort: 443
+                  CidrIp: 0.0.0.0/0 
+                - IpProtocol: tcp
+                  FromPort: 3306
+                  ToPort: 3306
+                  CidrIp: 0.0.0.0/0
+            VpcId: !Ref VPC
+         
+    PrivateInstanceEC2:  
+        Type: AWS::EC2::Instance
+        Properties:       
+            ImageId: ami-0c94855ba95c71c99      
+            InstanceType: t2.micro      
+            KeyName: !Ref KeyPair
+            NetworkInterfaces: 
+                - AssociatePublicIpAddress: "true"
+                  DeviceIndex: "0"
+                  GroupSet: 
+                    - !Ref SecurityGroupEC2
+                  SubnetId: !Ref SubnetPrivate1
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${Author}-${Env}-ec2-private     
+            UserData: 
+                !Base64 |
+                #!/bin/bash
+                yum -y update
+                yum install telnet
+
+    PublicInstanceEC2:  
+        Type: AWS::EC2::Instance
+        Properties:       
+            ImageId: ami-0c94855ba95c71c99      
+            InstanceType: t2.micro      
+            KeyName: !Ref KeyPair
+            NetworkInterfaces: 
+                - AssociatePublicIpAddress: "true"
+                  DeviceIndex: "0"
+                  GroupSet: 
+                    - !Ref SecurityGroupEC2
+                  SubnetId: !Ref SubnetPublic1
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${Author}-${Env}-ec2-public    
+            UserData: 
+                Fn::Base64: 
+                    !Sub |
+                        #!/bin/bash
+                        yum install -y httpd
+                        service httpd start
+                        wget https://wordpress.org/latest.tar.gz
+                        tar -xzf latest.tar.gz
+                        cp -r wordpress/* /var/www/html/
+                        rm -r wordpress
+                        rm -rf latest.tar.gz
+                        cd /var/www/html
+                        cp wp-config-sample.php wp-config.php
+                        sed -i 's/database_name_here/${DBName}/g' wp-config.php
+                        sed -i 's/username_here/${DBUsername}/g' wp-config.php
+                        sed -i 's/password_here/${DBPassword}/g' wp-config.php 
+                        sed -i 's/localhost/${DBEndpoint}/g' wp-config.php
+                        curl https://api.wordpress.org/secret-key/1.1/salt/ --output saltKey.txt
+                        sed -i -e '/NONCE_SALT/{r saltKey.txt' -e 'd}' wp-config.php
+                        sed -i '/put your unique phrase here/d' wp-config.php
+                        amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+                        service httpd restart

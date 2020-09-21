@@ -1,0 +1,173 @@
+Parameters: 
+  VpcCidr: 
+    Type: String
+    Default: 10.0.0.0/16
+  Env: 
+    Type: String
+    Description: Name Enviroment
+  Author: 
+    Type: String
+    Description: Name for identifying components
+  KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name key pair
+
+Outputs:
+  VPC:
+    Description: The VPC ID
+    Value: !Ref VPC
+  SubnetPublic1:
+    Description: The Subnet Public 1 ID
+    Value: !Ref SubnetPublic1
+  SubnetPublic2:
+    Description: The Subnet Public 2 ID
+    Value: !Ref SubnetPublic2
+  SubnetPrivate1:
+    Description: The Subnet Private 1 ID
+    Value: !Ref SubnetPrivate1
+  SubnetPrivate2:
+    Description: The Subnet Private 2 ID
+    Value: !Ref SubnetPrivate2
+    
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-IGW
+
+  Attachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  SubnetPublic1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-Subnet-Public1
+
+  SubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1b
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-Subnet-Public2
+
+  SubnetPrivate1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1c
+      CidrBlock: 10.0.3.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-Subnet-Private1
+
+  SubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1d
+      CidrBlock: 10.0.4.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-Subnet-Private2
+
+  RouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-RT-public
+      
+
+  RouteTablePrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Author}-${Env}-RT-private
+
+  RoutePublic:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId : !Ref InternetGateway
+    DependsOn:
+      - InternetGateway
+
+  RTSPublic1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref SubnetPublic1
+
+  RTSPublic2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref SubnetPublic2
+
+  RoutePrivate:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId : !Ref NAT
+    DependsOn:
+      - NAT
+
+  RTSPrivate1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref SubnetPrivate1
+
+  RTSPrivate2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref SubnetPrivate2
+
+  NAT:
+    Type: AWS::EC2::NatGateway
+    Properties:
+        AllocationId:
+          Fn::GetAtt:
+            - EIP
+            - AllocationId
+        SubnetId: !Ref SubnetPublic1
+        Tags:
+          - Key: Name
+            Value: !Sub ${Author}-${Env}-NatGateway
+    DependsOn:
+      - EIP
+      - SubnetPublic1
+
+  EIP:
+    DependsOn: Attachment
+    Type: AWS::EC2::EIP
+    Properties:
+        Domain: VPC
+
